@@ -12,11 +12,11 @@ A web-based piano fingering generation system powered by **complete Dyna-Q reinf
 
 ## 🎵 Live Demo
 
-**Try It Now**: [https://piano-fingering-generator-a08.vercel.app/](https://piano-fingering-generator-a08.vercel.app/)
+**Try It Now**: [https://piano-fingering-generator-a08.vercel.app/](https://piano-fingering-generator-a08.vercel.app/) [https://hawkyijdd-pianofingering08-51bwv014b.maozi.io/](https://hawkyijdd-pianofingering08-51bwv014b.maozi.io/)
 
 ---
 
-- Live Demo: `https://piano-fingering-generator-a08.vercel.app/`
+- Live Demo: `https://piano-fingering-generator-a08.vercel.app/` `https://hawkyijdd-pianofingering08-51bwv014b.maozi.io/`
 - Repository: `https://github.com/JeffreyZhou798/Piano-Fingering-Generator-A08`
 - Author: `Jeffrey Zhou`
 
