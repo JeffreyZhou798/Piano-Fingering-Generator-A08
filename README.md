@@ -1,6 +1,20 @@
-# Piano Fingering Generator
+# 🎹 Piano Fingering Generator Web Application – Enhanced Edition 4.0
 
-Automatic piano fingering generation for `MusicXML` and `MXL`, running directly in the browser.
+A web-based piano fingering generation system powered by **complete Dyna-Q reinforcement learning algorithm**. Upload MusicXML files and get AI-generated fingering suggestions - **runs entirely in your browser!**
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js)](https://nextjs.org/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+[English](#english) | [中文](#中文) | [日本語](#日本語)
+
+---
+
+## 🎵 Live Demo
+
+**Try It Now**: [https://piano-fingering-generator-a08.vercel.app/](https://piano-fingering-generator-a08.vercel.app/)
+
+---
 
 - Live Demo: `https://piano-fingering-generator-a08.vercel.app/`
 - Repository: `https://github.com/JeffreyZhou798/Piano-Fingering-Generator-A08`
