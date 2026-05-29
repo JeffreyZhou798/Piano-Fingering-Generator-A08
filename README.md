@@ -1,302 +1,406 @@
-## Piano Fingering Generator Web App
+# Piano Fingering Generator
 
-面向 MusicXML / MXL 的钢琴指法自动生成 Web 应用。当前版本在浏览器端实现了多 Worker 并行 Dyna-Q 训练，并新增“基于置信度引导的局部动态规划精修”质量增强层，可在生成初始策略后对低置信度片段做局部 Viterbi 精修。
+Automatic piano fingering generation for `MusicXML` and `MXL`, running directly in the browser.
 
-## Authors
+- Live Demo: `https://piano-fingering-generator-a08.vercel.app/`
+- Repository: `https://github.com/JeffreyZhou798/Piano-Fingering-Generator-A08`
+- Author: `Jeffrey Zhou`
 
-- Author (English): `Jeffrey Zhou`
-- 作者（中文）：`Jeffrey Zhou`
-- 著者（日本語）：`Jeffrey Zhou`
+---
 
-## Language
+## English
 
-- English summary: Browser-based piano fingering generation with Dyna-Q, ensemble variance analysis, and local dynamic-programming refinement.
-- 中文摘要：基于浏览器端 Dyna-Q 强化学习、多 Worker 集成方差与局部动态规划精修的钢琴指法生成系统。
-- 日本語要約：ブラウザ上で動作する Dyna-Q 学習、アンサンブル分散解析、局所動的計画精修を備えたピアノ運指生成システムです。
+### Overview
 
-## 当前版本概览
+Piano Fingering Generator is a browser-based application that analyzes piano scores and generates fingering annotations automatically. Users can upload a `MusicXML` or `MXL` score, let the system compute fingerings entirely on the client side, and download a new `MusicXML` file containing `<fingering>` annotations.
 
-- 前端框架：`Next.js 14` + `TypeScript` + `Tailwind CSS`
-- 运行方式：核心计算全部在浏览器中完成，无需后端服务
-- 训练方式：`Dyna-Q` + 优先级回放 + 多 Worker 并行训练
-- 质量增强：基于 Q 表方差的风险检测 + 局部 `Viterbi` 动态规划精修
-- 输入格式：`.musicxml` 与 `.mxl`
-- 输出格式：带 `<fingering>` 标注的 `.musicxml`
-- 缓存机制：`IndexedDB`
-- 调试入口：本地开发地址 `http://localhost:3000`
+The app is designed for piano learners, teachers, researchers, and developers who want a practical fingering-generation tool without installing a backend service. All major computation runs in the browser, which keeps usage simple and helps protect uploaded musical data.
 
-## 历次改造文档
+### Highlights
 
-建议按以下顺序阅读，以了解本项目从 Julia 后端版到前端 Web 版、再到局部质量增强版的完整演进：
+- Browser-first workflow with no required backend service
+- Automatic fingering generation for piano scores in `MusicXML` and `MXL`
+- Downloadable annotated `MusicXML` output with embedded fingering marks
+- Multi-language experience for English, Chinese, and Japanese users
+- IndexedDB caching for faster repeated processing on the same device
+- Suitable for practice support, score review, and music education scenarios
 
-1. `原项目程序原理教学文档.md`
-2. `项目改造方案3-Web前端化.md`
-3. `项目改造方案4-Web前端化.md`
-4. `局部指法质量增强改造方案01.md`
+### Technology Highlights
 
-## 本次改造重点
+- `Dyna-Q` reinforcement learning drives the core fingering policy search
+- Parallel `Web Workers` adapt to `4-core / 2-core / 1-core` devices automatically
+- Dual-layer progressive `Web Workers` strategy improves robustness across different browser and runtime conditions
+- Confidence-Guided Local Dynamic Programming Refinement improves uncertain local passages after the initial policy is generated
+- Ensemble mean and variance analysis identifies low-confidence segments from multiple worker outputs
+- Local `Viterbi` dynamic programming refines short windows with boundary-aware scoring
+- Hamming-distance based path comparison controls excessive local replacement
+- Three-layer defensive replacement strategy balances stability and improvement
 
-### 1. 局部指法质量增强
-
-- 新增 `frontend/src/lib/algorithm/localDPRefine.ts`
-- 对多 Worker 训练后的 Q 表同时计算均值与方差
-- 用方差 + 归一化奖励定位低置信度风险点
-- 在局部窗口内运行带边界代价的 `Viterbi` 动态规划
-- 采用“三层防御”筛选替换候选：
-  - 超级收益豁免
-  - 常规保守通道
-  - 高风险高回报通道
-- 使用“批量预计算 + 贪心无冲突替换”规避顺序依赖 Bug
-
-### 2. 主流程接入
-
-- `frontend/src/lib/algorithm/process.ts` 已接入：
-  - Q 表集成分析
-  - 初始策略提取
-  - 局部 DP 精修
-- 单线程 fallback 路径也会执行局部精修，不只限于多 Worker 模式
-
-### 3. 稳定性修正
-
-- 修复单手谱在 Worker 中被误判为无效的问题
-- 修复 MusicXML 写回阶段原地修改指法数组的隐患
-- 写回器增加 Node 环境下的 XML DOM fallback，便于自动化测试脚本复用
-
-## 核心目录结构
+### Pipeline Architecture
 
 ```text
-.
-├── CompositionExamples/                 # 示例乐曲
-├── frontend/                            # Vercel Root Directory
-│   ├── src/
-│   │   ├── app/                         # 页面入口
-│   │   ├── components/                  # UI 组件
-│   │   ├── lib/
-│   │   │   ├── algorithm/
-│   │   │   │   ├── dynaQ.ts
-│   │   │   │   ├── localDPRefine.ts
-│   │   │   │   ├── policy.ts
-│   │   │   │   ├── process.ts
-│   │   │   │   └── ...
-│   │   │   ├── music/
-│   │   │   ├── cache/
-│   │   │   └── i18n.ts
-│   │   └── workers/
-│   │       ├── dynaQ.worker.ts
-│   │       └── fingering.worker.ts
-│   ├── scripts/
-│   │   └── batch-e2e.mjs               # 6 首曲子自动化浏览器回归脚本（每首独立 browser context）
-│   ├── next.config.mjs
-│   ├── package.json
-│   └── vercel.json
-├── src.jl-backend/                      # Julia 原始参考实现
-└── README.md
+Input MusicXML / MXL
+        |
+        v
+Score parsing and hand separation
+        |
+        v
+Main processing worker
+        |
+        v
+Adaptive parallel Dyna-Q training
+(4 workers / 2 workers / 1 worker)
+        |
+        v
+Ensemble Q-table aggregation
+(mean + variance)
+        |
+        v
+Initial fingering policy extraction
+        |
+        v
+Confidence-Guided Local Dynamic
+Programming Refinement
+        |
+        v
+Boundary-aware Viterbi optimization
+for risky local windows
+        |
+        v
+Three-layer defensive replacement
+        |
+        v
+Write fingering annotations back to MusicXML
+        |
+        v
+Download annotated score
 ```
 
-## 算法流程
+### How To Use
 
-```text
-上传 MusicXML / MXL
-        ↓
-MusicXML 解析与左右手拆分
-        ↓
-主 Worker -> 分段处理
-        ↓
-Dyna-Q Worker 并行训练（1 / 2 / 4 个）
-        ↓
-Q 表均值 + 方差分析
-        ↓
-提取初始策略
-        ↓
-局部动态规划精修（Viterbi）
-        ↓
-回写 fingering 到 MusicXML
-        ↓
-下载结果文件
-```
+1. Open the live app.
+2. Upload a `MusicXML` or `MXL` piano score.
+3. Wait for parsing, training, and local refinement to complete.
+4. Review the result summary on the page.
+5. Download the generated `MusicXML` file with fingering annotations.
 
-## 本地开发
+### Input And Output
 
-### 环境要求
+- Input: `MusicXML (.musicxml)` and compressed `MXL (.mxl)`
+- Output: annotated `MusicXML` with embedded `<fingering>` tags
+
+### Local Development
+
+#### Requirements
 
 - `Node.js 20+`
 - `npm 10+`
-- Chrome 或 Microsoft Edge（用于自动化浏览器回归脚本）
 
-### 安装依赖
+#### Install
 
 ```bash
 cd frontend
 npm install
 ```
 
-### 启动开发服务器
+#### Run
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-打开：
+Default local address:
 
 ```text
 http://localhost:3000
 ```
 
-## 自动化测试
-
-### 1. 代码检查
+If you want to use a custom port:
 
 ```bash
 cd frontend
-npm run lint
-npm run build
+npx next dev -p 3001
 ```
 
-### 2. 浏览器端批量回归
+### Deployment
 
-先保持本地开发服务器运行，再另开终端执行：
+This project can be deployed on `Vercel` as a standard `Next.js` application.
+
+### Notes
+
+- Very large or highly complex scores may take longer on their first run
+- Processing speed depends on CPU performance, memory, and available browser threads
+- The generated fingering is designed to be useful and practical, but difficult passages should still be reviewed by musicians or teachers
+
+---
+
+## 中文
+
+### 项目简介
+
+Piano Fingering Generator 是一个运行在浏览器中的钢琴指法自动生成应用。用户上传 `MusicXML` 或 `MXL` 乐谱后，系统会在本地浏览器内完成解析、训练、局部精修与指法写回，并生成带有 `<fingering>` 标注的新 `MusicXML` 文件供下载。
+
+本项目适合钢琴学习者、教师、音乐教育研究者以及对自动指法生成感兴趣的开发者使用。核心计算在浏览器端完成，不需要额外部署后端服务，使用门槛低，也更利于保护用户上传的乐谱数据。
+
+### 功能亮点
+
+- 支持 `MusicXML` 与 `MXL` 钢琴乐谱上传
+- 自动生成钢琴左右手指法
+- 输出可下载、可继续编辑的带指法 `MusicXML`
+- 支持英文、中文、日文界面
+- 采用本地 `IndexedDB` 缓存，重复处理更快
+- 适用于练习辅助、教学参考、乐谱复核等场景
+
+### 技术亮点
+
+- 以 `Dyna-Q` 强化学习作为核心指法策略搜索算法
+- 使用并行 `Web Workers`，可根据设备自动适配 `4核 / 2核 / 1核`
+- 采用双层渐进式 `Web Workers` 策略，提高不同浏览器与运行环境下的可用性
+- 使用“基于置信度引导的局部动态规划精修算法”对高风险片段进行二次优化
+- 通过多 Worker 输出的 Q 表均值与方差分析定位低置信度片段
+- 在局部窗口内使用带边界约束的 `Viterbi` 动态规划进行精修
+- 通过基于汉明距离的路径差异控制避免过度替换
+- 通过三层防御替换策略在稳定性与收益之间取得平衡
+
+### 整体 Pipeline 架构图
+
+```text
+输入 MusicXML / MXL
+        |
+        v
+乐谱解析与左右手拆分
+        |
+        v
+主处理 Worker
+        |
+        v
+自适应并行 Dyna-Q 训练
+（4 Worker / 2 Worker / 1 Worker）
+        |
+        v
+集成 Q 表分析
+（均值 + 方差）
+        |
+        v
+提取初始指法策略
+        |
+        v
+基于置信度引导的局部动态规划精修
+        |
+        v
+对高风险窗口执行带边界代价的
+Viterbi 局部优化
+        |
+        v
+三层防御替换策略
+        |
+        v
+将指法写回 MusicXML
+        |
+        v
+下载带指法标注的乐谱
+```
+
+### 使用方式
+
+1. 打开在线试用链接。
+2. 上传 `MusicXML` 或 `MXL` 钢琴乐谱。
+3. 等待系统完成解析、训练与局部精修。
+4. 在页面查看结果统计信息。
+5. 下载带指法标注的 `MusicXML` 文件。
+
+### 输入与输出
+
+- 输入格式：`MusicXML (.musicxml)`、`MXL (.mxl)`
+- 输出格式：带 `<fingering>` 标注的 `MusicXML`
+
+### 本地运行
+
+#### 环境要求
+
+- `Node.js 20+`
+- `npm 10+`
+
+#### 安装依赖
 
 ```bash
 cd frontend
-npm run test:batch
+npm install
 ```
 
-默认会自动测试 `CompositionExamples` 中的 6 首代表乐曲：
-
-1. `simple_test.musicxml`
-2. `S1_Bach_G_Major.musicxml`
-3. `S6_no_5.musicxml`
-4. `Waltz.musicxml`
-5. `S8_wedding.musicxml`
-6. `S9_turkish_march.musicxml`
-
-### 2.1 最近一次本地回归结果
-
-最近一次人工复核后的自动化回归已覆盖上述 6 首乐曲，结果如下：
-
-- `simple_test.musicxml`：通过，约 `2.5s`，`8` 个 `<fingering>`
-- `S1_Bach_G_Major.musicxml`：通过，约 `4.8s`，`125` 个 `<fingering>`
-- `S6_no_5.musicxml`：通过，约 `10.6s`，`262` 个 `<fingering>`
-- `Waltz.musicxml`：通过，约 `25s` 量级，`212` 个 `<fingering>`
-- `S8_wedding.musicxml`：通过，约 `25.8s`，`257` 个 `<fingering>`
-- `S9_turkish_march.musicxml`：通过，约 `18.1s`，`259` 个 `<fingering>`
-
-对应报告位于：
-
-- `frontend/test-results/batch-first4-rerun/`
-- `frontend/test-results/batch-warning-check/`
-
-验证结论：
-
-- 6 首乐曲均成功生成并下载带指法标注的 MusicXML
-- `consoleErrors` 与 `pageErrors` 均为 `0`
-- 指法默认 fallback 告警已改为按和弦规模去重，避免控制台被重复警告淹没
-- `npm run lint` 与 `npm run build` 均通过
-
-### 3. 自动化回归输出
-
-脚本执行完成后会生成：
-
-- `frontend/test-results/batch-e2e/summary.json`
-- `frontend/test-results/batch-e2e/summary.md`
-- `frontend/test-results/batch-e2e/downloads/`
-
-其中会记录：
-
-- 每首曲子的处理时长
-- 下载文件路径
-- `<fingering>` 标注数量
-- 浏览器控制台错误 / 警告
-- 页面运行时错误
-
-说明：
-
-- 当前脚本会为每首乐曲创建独立浏览器上下文，避免前一首曲目的 Worker、下载状态或页面内存影响下一首
-- 如果你只想复测单首，可使用环境变量 `TEST_FILES` 指定文件名，例如 `S8_wedding.musicxml`
-
-## 手动调试建议
-
-### 本地调试链接
-
-- `http://localhost:3000`
-
-### 推荐检查项
-
-1. 打开浏览器控制台
-2. 上传 `.musicxml` 或 `.mxl`
-3. 观察 Dyna-Q 训练日志与精修日志
-4. 下载结果文件
-5. 用 MuseScore / Finale / Sibelius 复核指法标注
-
-### 清除缓存
-
-页面内置了“清除缓存（调试用）”按钮，也可以在控制台执行：
-
-```javascript
-indexedDB.deleteDatabase('PianoFingeringDB')
-```
-
-## 部署说明
-
-### Vercel
-
-本项目已经按“`frontend` 作为 Root Directory”整理。
-
-Vercel 推荐配置如下：
-
-- Framework Preset：`Next.js`
-- Root Directory：`frontend`
-- Build Command：保持默认
-- Output Directory：保持默认
-
-注意事项：
-
-- `vercel.json` 位于 `frontend/vercel.json`
-- `frontend/vercel.json` 当前保持最小配置，仅包含 `{"framework":"nextjs"}`，与 `frontend` Root Directory 配套
-- 不要在 Vercel 控制台里手写 `cd frontend && ...`
-- 当前 `frontend/vercel.json` 采用最小必要配置，避免因多余策略导致部署或资源加载问题
-
-### GitHub
-
-- `.github/workflows/deploy.yml` 当前用于构建校验，不会真的自动部署
-- CI 使用 `frontend/package-lock.json` 作为缓存依赖定位，构建入口也是 `frontend`
-- 推送前建议至少执行一次：
+#### 启动开发服务
 
 ```bash
 cd frontend
-npm run lint
-npm run build
+npm run dev
 ```
 
-## 关键文件说明
+默认本地地址：
 
-- `frontend/src/lib/algorithm/dynaQ.ts`
-  - TypeScript 版 Dyna-Q 求解器
-- `frontend/src/lib/algorithm/localDPRefine.ts`
-  - 集成方差分析与局部动态规划精修
-- `frontend/src/lib/algorithm/process.ts`
-  - 分段处理、并行训练、策略提取与精修接线
-- `frontend/src/workers/dynaQ.worker.ts`
-  - 单个训练 Worker
-- `frontend/src/workers/fingering.worker.ts`
-  - 文件处理与主流程 Worker
-- `frontend/src/lib/music/parser.ts`
-  - MusicXML 解析
-- `frontend/src/lib/music/writer.ts`
-  - 指法回写
+```text
+http://localhost:3000
+```
 
-## 已知边界
+如需指定端口：
 
-- 超长复杂乐谱的首次处理仍可能耗时较长
-- 指法质量虽已增强，但仍建议对高难度片段做人工复核
-- 浏览器端计算受设备 CPU、内存、线程数影响较大
+```bash
+cd frontend
+npx next dev -p 3001
+```
 
-## 致谢
+### 部署说明
 
-- 原始研究项目：`PianoFingering.jl`
-- 相关技术栈：`Next.js`、`TypeScript`、`xml2js`、`jszip`、`idb`
+本项目可以作为标准 `Next.js` 应用部署到 `Vercel`。
+
+### 使用说明
+
+- 首次处理超长或高复杂度乐谱时，耗时可能更长
+- 处理速度与设备 CPU、内存、浏览器线程数有关
+- 自动生成的指法可作为高质量参考，但高难度片段仍建议教师或演奏者人工复核
+
+---
+
+## 日本語
+
+### 概要
+
+Piano Fingering Generator は、ブラウザ上で動作するピアノ運指自動生成アプリです。`MusicXML` または `MXL` の楽譜をアップロードすると、解析、学習、局所精修、運指の書き戻しまでをブラウザ内で実行し、`<fingering>` 注釈付きの新しい `MusicXML` をダウンロードできます。
+
+このアプリは、ピアノ学習者、教師、音楽教育研究者、そして自動運指生成に関心のある開発者に適しています。主要な計算はブラウザ側で完結するため、追加のバックエンドを必要とせず、使いやすく、アップロードした楽譜データの保護にも役立ちます。
+
+### 主な特徴
+
+- `MusicXML` と `MXL` のピアノ譜面に対応
+- 左手・右手の運指を自動生成
+- `<fingering>` 注釈付き `MusicXML` をダウンロード可能
+- 英語、中国語、日本語の多言語対応
+- `IndexedDB` キャッシュにより同一端末での再処理を高速化
+- 練習支援、授業補助、譜面確認などに活用可能
+
+### 技術ハイライト
+
+- 中核アルゴリズムとして `Dyna-Q` 強化学習を採用
+- 並列 `Web Workers` がデバイスに応じて `4コア / 2コア / 1コア` に自動適応
+- 二層の段階的 `Web Workers` 戦略により、さまざまなブラウザ環境での安定性を向上
+- 「信頼度誘導型局所動的計画精修アルゴリズム」により、不確実な局所区間を追加最適化
+- 複数 Worker の Q テーブル平均値と分散を用いて低信頼度区間を検出
+- 局所ウィンドウでは境界条件を考慮した `Viterbi` 動的計画法で最適化
+- ハミング距離に基づく経路差分評価で過度な置換を抑制
+- 三層防御の置換戦略で安定性と改善効果を両立
+
+### 全体 Pipeline アーキテクチャ
+
+```text
+MusicXML / MXL を入力
+        |
+        v
+譜面解析と左右手の分離
+        |
+        v
+メイン処理 Worker
+        |
+        v
+適応型並列 Dyna-Q 学習
+（4 Worker / 2 Worker / 1 Worker）
+        |
+        v
+アンサンブル Q テーブル解析
+（平均 + 分散）
+        |
+        v
+初期運指方策の抽出
+        |
+        v
+信頼度誘導型局所動的計画精修
+        |
+        v
+高リスク局所区間に対する
+境界考慮型 Viterbi 最適化
+        |
+        v
+三層防御の置換戦略
+        |
+        v
+MusicXML へ運指を書き戻し
+        |
+        v
+運指付き譜面をダウンロード
+```
+
+### 使い方
+
+1. オンライン試用リンクを開きます。
+2. `MusicXML` または `MXL` のピアノ譜面をアップロードします。
+3. 解析、学習、局所精修の完了を待ちます。
+4. ページ上で結果の概要を確認します。
+5. 運指付き `MusicXML` をダウンロードします。
+
+### 入出力
+
+- 入力形式: `MusicXML (.musicxml)`、`MXL (.mxl)`
+- 出力形式: `<fingering>` 注釈付き `MusicXML`
+
+### ローカル実行
+
+#### 必要環境
+
+- `Node.js 20+`
+- `npm 10+`
+
+#### 依存関係のインストール
+
+```bash
+cd frontend
+npm install
+```
+
+#### 開発サーバー起動
+
+```bash
+cd frontend
+npm run dev
+```
+
+既定のローカル URL:
+
+```text
+http://localhost:3000
+```
+
+ポートを指定する場合:
+
+```bash
+cd frontend
+npx next dev -p 3001
+```
+
+### デプロイ
+
+このプロジェクトは標準的な `Next.js` アプリとして `Vercel` にデプロイできます。
+
+### 注意事項
+
+- 長大または複雑な譜面は初回処理に時間がかかる場合があります
+- 処理速度は CPU、メモリ、ブラウザの利用可能スレッド数に依存します
+- 自動生成された運指は実用的な参考情報ですが、難所は演奏者や指導者による確認を推奨します
 
 ## License
 
-本仓库沿用根目录 `LICENSE`。
+MIT License - See [LICENSE](../LICENSE) for details.
+
+---
+
+
+
+## ⚠️ Copyright Notice
+
+© 2026 Jeffrey Zhou. All rights reserved.
+
+This repository and its contents are protected by copyright law.  
+No part of this project may be copied, reproduced, modified, or distributed without prior written permission from the author.
+
+Commercial use is strictly prohibited.
+
+
+*Built with ❤️ for music education*
